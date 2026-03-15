@@ -84,7 +84,6 @@ const Rankings = () => {
     <div className="flex flex-col items-center px-4 py-10 min-h-screen w-full max-w-7xl mx-auto">
       <h2 className="text-4xl font-bold mb-7">Rankings</h2>
 
-      {/* Filtros */}
       <div className="bg-card border p-6 w-full max-w-[700px] rounded-xl shadow-sm mb-8 flex flex-col gap-4">
         <div className="flex gap-2 flex-wrap">
           {GAME_MODES.map((m) => (
@@ -119,18 +118,41 @@ const Rankings = () => {
           />
         </div>
 
+        {/* REAÑADIDO: Opción de excluir continentes */}
+        {region === 'Global' && (
+          <div className="mt-2">
+            <div className="text-xs font-bold text-muted-foreground mb-2 uppercase tracking-wider">
+              Exclude continents
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {Object.keys(CONTINENTS).map((name) => (
+                <button
+                  key={name}
+                  onClick={() => toggleContinent(name)}
+                  className={`px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                    excludedContinents.has(name)
+                      ? 'bg-destructive/10 border-destructive text-destructive'
+                      : 'bg-secondary border-transparent text-muted-foreground'
+                  }`}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <button
           onClick={fetchRanking}
           disabled={loading}
-          className="bg-primary text-white rounded-full px-8 py-2 font-bold self-end"
+          className="bg-primary text-white rounded-full px-8 py-2 font-bold self-end mt-2 transition-transform hover:scale-105 active:scale-95"
         >
           {loading ? 'Searching...' : 'Search ranking'}
         </button>
       </div>
 
-      {loading && <p className="text-muted-foreground">{progress}</p>}
+      {loading && <p className="text-muted-foreground animate-pulse mb-4">{progress}</p>}
 
-      {/* Resultados */}
       {!loading && players.length > 0 && (
         <div className="w-full max-w-[700px] bg-card border rounded-xl overflow-hidden shadow-sm">
           <div className="bg-primary text-white grid grid-cols-[50px_1fr_100px_80px] px-5 py-3 text-xs font-bold uppercase tracking-wider">
@@ -154,7 +176,8 @@ const Rankings = () => {
                   <a
                     href={`https://osu.ppy.sh/users/${p.user?.id}`}
                     target="_blank"
-                    className="font-bold hover:underline"
+                    rel="noopener noreferrer"
+                    className="font-bold hover:underline truncate"
                   >
                     {p.user?.username}
                   </a>
