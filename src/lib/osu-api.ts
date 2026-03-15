@@ -4,8 +4,13 @@ export interface OsuPlayer {
   pp: number;
   global_rank: number;
   user: {
+    id: number;
     username: string;
     country_code: string;
+    country: {
+      code: string;
+      name: string;
+    };
   };
 }
 
