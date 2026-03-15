@@ -132,27 +132,31 @@ const Rankings = () => {
             <div className="text-xs font-bold text-muted-foreground mb-1.5 pl-1 uppercase tracking-wider">
               Exclude continents
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {Object.keys(CONTINENTS).map((name) => (
-                <label
-                  key={name}
-                  className={`flex items-center gap-1 text-sm font-bold cursor-pointer px-3 py-1 rounded-full border-[1.5px] transition-all select-none ${
-                    excludedContinents.has(name)
-                      ? 'bg-destructive/10 border-destructive/50 text-destructive'
-                      : 'bg-card border-border text-muted-foreground'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="hidden"
-                    checked={excludedContinents.has(name)}
-                    onChange={() => toggleContinent(name)}
-                  />
-                  {name}
-                </label>
-              ))}
-            </div>
-          </div>
+            <div className="flex items-center gap-2.5 overflow-hidden">
+  
+  <img
+    className="w-[20px] h-auto object-contain rounded-[2px] opacity-90 shadow-sm flex-shrink-0"
+    src={`https://osu.ppy.sh/images/flags/${(p.user?.country_code || '').toUpperCase()}.png`}
+    alt={countryName}
+    onError={(e) => {
+      (e.target as HTMLImageElement).style.display = 'none';
+    }}
+  />
+  <div className="overflow-hidden">
+    <a
+      href={`https://osu.ppy.sh/users/${userId}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-bold truncate hover:text-primary hover:underline transition-colors block text-sm"
+    >
+      {p.user?.username || '?'}
+    </a>
+
+    <div className="text-[10px] text-muted-foreground/70 font-medium uppercase tracking-tighter">
+      {p.user?.country_code}
+    </div>
+  </div>
+</div>
         )}
 
         <button
