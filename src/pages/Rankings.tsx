@@ -196,7 +196,8 @@ const Rankings = () => {
             {players.map((p, i) => {
               const rank = i + 1;
               const cc = (p.user?.country_code || '').toLowerCase();
-              const ccUp = (p.user?.country_code || '').toUpperCase();
+              const countryName = p.user?.country?.name || p.user?.country_code || '';
+              const userId = p.user?.id;
               return (
                 <div
                   key={`${p.user?.username}-${i}`}
@@ -209,14 +210,21 @@ const Rankings = () => {
                     <img
                       className="w-[22px] h-4 object-cover rounded-sm shadow-sm flex-shrink-0"
                       src={`https://osu.ppy.sh/images/flags/${cc}.png`}
-                      alt={ccUp}
+                      alt={countryName}
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                       }}
                     />
                     <div className="overflow-hidden">
-                      <div className="font-bold truncate">{p.user?.username || '?'}</div>
-                      <div className="text-xs text-muted-foreground font-semibold">{ccUp}</div>
+                      <a
+                        href={`https://osu.ppy.sh/users/${userId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-bold truncate hover:text-primary hover:underline transition-colors"
+                      >
+                        {p.user?.username || '?'}
+                      </a>
+                      <div className="text-xs text-muted-foreground font-semibold">{countryName}</div>
                     </div>
                   </div>
                   <div className="font-extrabold text-right text-sm whitespace-nowrap">
