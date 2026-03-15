@@ -1,12 +1,22 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useNavigate } from 'react-router-dom';
 
 const Index = () => {
+  const navigate = useNavigate();
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-56px)] text-center px-8">
+      <h1 className="font-heading text-[clamp(2.4rem,6vw,4.2rem)] font-bold leading-tight mb-4 max-w-[640px]">
+        The definitive web for osu! rankings
+      </h1>
+      <p className="text-lg text-muted-foreground max-w-[480px] mb-8 leading-relaxed">
+        Filter global rankings by continent, country exclusions and game mode. Find out where players from your region truly stand.
+      </p>
+      <button
+        onClick={() => navigate('/rankings')}
+        className="bg-primary text-primary-foreground rounded-full px-9 py-3 font-bold cursor-pointer transition-all shadow-[0_4px_15px_hsl(var(--primary)/0.4)] hover:brightness-110 hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--primary)/0.5)]"
+      >
+        Explore Rankings →
+      </button>
     </div>
   );
 };
