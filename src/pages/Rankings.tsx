@@ -87,9 +87,7 @@ const Rankings = () => {
     <div className="flex flex-col items-center px-4 py-10 min-h-[calc(100vh-56px)]">
       <h2 className="font-heading text-4xl font-bold mb-7">Rankings</h2>
 
-      {/* Controls */}
       <div className="bg-card border border-border rounded-[var(--radius)] p-6 w-full max-w-[700px] shadow-sm mb-8 flex flex-col gap-4">
-        {/* Mode tabs */}
         <div className="flex gap-2 flex-wrap">
           {GAME_MODES.map((m) => (
             <button
@@ -106,7 +104,6 @@ const Rankings = () => {
           ))}
         </div>
 
-        {/* Region + exclude */}
         <div className="flex gap-3 flex-wrap">
           <select
             value={region}
@@ -123,137 +120,3 @@ const Rankings = () => {
             onChange={(e) => setExcludeInput(e.target.value)}
             placeholder="Exclude countries (e.g. ES, KR)"
             className="flex-1 min-w-[150px] border-[1.5px] border-border rounded-full px-4 py-2.5 text-sm bg-card text-foreground outline-none focus:border-primary focus:ring-[3px] focus:ring-ring/15 placeholder:text-muted-foreground"
-          />
-        </div>
-
-        {/* Exclude continents (only when Global) */}
-        {region === 'Global' && (
-          <div>
-            <div className="text-xs font-bold text-muted-foreground mb-1.5 pl-1 uppercase tracking-wider">
-              Exclude continents
-            </div>
-            <div className="flex items-center gap-2.5 overflow-hidden">
-  
-  <img
-    className="w-[20px] h-auto object-contain rounded-[2px] opacity-90 shadow-sm flex-shrink-0"
-    src={`https://osu.ppy.sh/images/flags/${(p.user?.country_code || '').toUpperCase()}.png`}
-    alt={countryName}
-    onError={(e) => {
-      (e.target as HTMLImageElement).style.display = 'none';
-    }}
-  />
-  <div className="overflow-hidden">
-    <a
-      href={`https://osu.ppy.sh/users/${userId}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="font-bold truncate hover:text-primary hover:underline transition-colors block text-sm"
-    >
-      {p.user?.username || '?'}
-    </a>
-
-    <div className="text-[10px] text-muted-foreground/70 font-medium uppercase tracking-tighter">
-      {p.user?.country_code}
-    </div>
-  </div>
-</div>
-        )}
-
-        <button
-          onClick={fetchRanking}
-          disabled={loading}
-          className="self-end bg-primary text-primary-foreground rounded-full px-8 py-2.5 text-sm font-bold cursor-pointer transition-all shadow-[0_3px_12px_hsl(var(--primary)/0.35)] hover:brightness-110 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
-        >
-          {loading ? 'Searching...' : 'Search ranking'}
-        </button>
-      </div>
-
-      {/* Results */}
-      {loading && (
-        <div className="w-full max-w-[700px] py-8 text-center text-muted-foreground">
-          <div className="flex justify-center gap-1 mb-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-primary loading-dot inline-block" />
-            <span className="w-2.5 h-2.5 rounded-full bg-primary loading-dot inline-block" />
-            <span className="w-2.5 h-2.5 rounded-full bg-primary loading-dot inline-block" />
-          </div>
-          <p className="text-sm">{progress}</p>
-        </div>
-      )}
-
-      {error && (
-        <div className="w-full max-w-[700px] py-8 text-center">
-          <p className="text-destructive font-bold">⚠ {error}</p>
-        </div>
-      )}
-
-      {!loading && !error && players.length > 0 && (
-        <div className="w-full max-w-[700px]">
-          <div className="bg-card border border-border rounded-[var(--radius)] overflow-hidden shadow-sm">
-            {/* Header */}
-            <div className="bg-primary text-primary-foreground grid grid-cols-[52px_1fr_100px_72px] px-5 py-3 text-xs font-bold uppercase tracking-wider gap-2 items-center">
-              <span className="text-center">#</span>
-              <span>Player</span>
-              <span className="text-right">Performance</span>
-              <span className="text-right">Global</span>
-            </div>
-            {/* Rows */}
-            {players.map((p, i) => {
-              const rank = i + 1;
-              const cc = (p.user?.country_code || '').toLowerCase();
-              const countryName = p.user?.country?.name || p.user?.country_code || '';
-              const userId = p.user?.id;
-              return (
-                <div
-                  key={`${p.user?.username}-${i}`}
-                  className="grid grid-cols-[52px_1fr_100px_72px] px-5 py-2.5 border-b border-secondary gap-2 items-center hover:bg-secondary transition-colors"
-                >
-                  <span className={`font-extrabold text-center text-sm ${rank <= 3 ? 'text-accent text-base' : 'text-primary'}`}>
-                    {rank}
-                  </span>
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <img
-                      className="w-[22px] h-4 object-cover rounded-sm shadow-sm flex-shrink-0"
-                      src={`https://osu.ppy.sh/images/flags/${cc}.png`}
-                      alt={countryName}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                    <div className="overflow-hidden">
-                      <a
-                        href={`https://osu.ppy.sh/users/${userId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-bold truncate hover:text-primary hover:underline transition-colors"
-                      >
-                        {p.user?.username || '?'}
-                      </a>
-                      <div className="text-xs text-muted-foreground font-semibold">{countryName}</div>
-                    </div>
-                  </div>
-                  <div className="font-extrabold text-right text-sm whitespace-nowrap">
-                    {Math.round(p.pp || 0).toLocaleString()}pp
-                  </div>
-                  <div className="text-xs text-muted-foreground font-semibold text-right">
-                    {p.global_rank ? `#${p.global_rank.toLocaleString()}` : '—'}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-center mt-4 text-xs text-muted-foreground">
-            Top {players.length} · {modeLabel} · {region}
-          </p>
-        </div>
-      )}
-
-      {!loading && !error && searched && players.length === 0 && (
-        <div className="w-full max-w-[700px] py-8 text-center text-muted-foreground">
-          No players found for the selected filters.
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default Rankings;
