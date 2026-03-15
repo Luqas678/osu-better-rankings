@@ -5,6 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // REEMPLAZA "nombre-de-tu-repositorio" por el nombre real de tu repo en GitHub
+  base: "/osu-better-rankings/", 
   server: {
     host: "::",
     port: 8080,
