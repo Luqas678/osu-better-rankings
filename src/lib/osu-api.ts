@@ -1,5 +1,3 @@
-import { supabase } from '@/integrations/supabase/client';
-
 export interface OsuPlayer {
   pp: number;
   global_rank: number;
@@ -7,26 +5,52 @@ export interface OsuPlayer {
     id: number;
     username: string;
     country_code: string;
-    country: {
-      code: string;
-      name: string;
-    };
   };
 }
 
-export interface RankingResponse {
-  ranking: OsuPlayer[];
+const CLIENT_ID = import.meta.env.VITE_OSU_CLIENT_ID;
+const CLIENT_SECRET = import.meta.env.VITE_OSU_CLIENT_SECRET;
+
+let accessToken: string | null = null;
+
+async function getAccessToken() {
+  if (accessToken) return accessToken;
+
+  const response = await fetch('https://osu.ppy.sh/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      grant_type: 'client_credentials',
+      scope: 'public',
+    }),
+  });
+
+  const data = await response.json();
+  if (data.error) throw new Error("Error de autenticación con osu!. Revisa tus claves.");
+  
+  accessToken = data.access_token;
+  return accessToken;
 }
 
 export async function fetchOsuRankingPage(mode: string, page: number): Promise<OsuPlayer[]> {
-  const { data, error } = await supabase.functions.invoke('osu-rankings', {
-    body: { mode, page },
-  });
-
-  if (error) throw new Error(error.message);
-  if (data?.error) throw new Error(data.error);
-
-  return data?.ranking || [];
+  try {
+    const token = await getAccessToken();
+    const response = await fetch(`https://osu.ppy.sh/api/v2/rankings/${mode}/performance?page=${page}`, {
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+    });
+    
+    const data = await response.json();
+    return data.ranking || [];
+  } catch (err) {
+    console.error("Error fetching rankings:", err);
+    throw err;
+  }
 }
 
 export const CONTINENTS: Record<string, string[]> = {
