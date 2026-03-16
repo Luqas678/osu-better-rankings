@@ -13,56 +13,72 @@ import {
 const Rankings = () => {
   const [mode, setMode] = useState<GameMode>('osu');
   const [region, setRegion] = useState('Global');
-  const [excludedCountries, setExcludedCountries] = useState<Set<string>>(new Set());
+  const [excludedContinents, setExcludedContinents] = useState<Set<string>>(new Set());
+  const [reAddedCountries, setReAddedCountries] = useState<Set<string>>(new Set());
   const [players, setPlayers] = useState<OsuPlayer[]>([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
-  const [showExcludeDropdown, setShowExcludeDropdown] = useState(false);
-  const [showIncludeDropdown, setShowIncludeDropdown] = useState(false);
-  const [excludeSearch, setExcludeSearch] = useState('');
-  const [includeSearch, setIncludeSearch] = useState('');
+  const [showContinentDrop, setShowContinentDrop] = useState(false);
+  const [showReAddDrop, setShowReAddDrop] = useState(false);
+  const [reAddSearch, setReAddSearch] = useState('');
 
-  // All country codes from all continents
-  const allCountries = useMemo(() => {
-    const codes = new Set<string>();
-    Object.values(CONTINENTS).forEach((arr) => arr.forEach((c) => codes.add(c)));
-    return Array.from(codes).sort((a, b) =>
-      (COUNTRY_NAMES[a] || a).localeCompare(COUNTRY_NAMES[b] || b)
-    );
-  }, []);
+  // Continents not yet excluded
+  const availableContinents = useMemo(
+    () => Object.keys(CONTINENTS).filter((c) => !excludedContinents.has(c)),
+    [excludedContinents]
+  );
 
-  // Countries available to exclude (not yet excluded)
-  const availableToExclude = useMemo(() => {
-    return allCountries
-      .filter((c) => !excludedCountries.has(c))
-      .filter((c) =>
-        excludeSearch
-          ? (COUNTRY_NAMES[c] || c).toLowerCase().includes(excludeSearch.toLowerCase()) ||
-            c.toLowerCase().includes(excludeSearch.toLowerCase())
-          : true
-      );
-  }, [allCountries, excludedCountries, excludeSearch]);
-
-  // Countries available to re-include (currently excluded)
-  const availableToInclude = useMemo(() => {
-    return Array.from(excludedCountries)
+  // Countries from excluded continents that can be re-added (not already re-added)
+  const reAddableCountries = useMemo(() => {
+    const codes: string[] = [];
+    excludedContinents.forEach((cont) => {
+      (CONTINENTS[cont] || []).forEach((c) => {
+        if (!reAddedCountries.has(c)) codes.push(c);
+      });
+    });
+    return codes
       .sort((a, b) => (COUNTRY_NAMES[a] || a).localeCompare(COUNTRY_NAMES[b] || b))
       .filter((c) =>
-        includeSearch
-          ? (COUNTRY_NAMES[c] || c).toLowerCase().includes(includeSearch.toLowerCase()) ||
-            c.toLowerCase().includes(includeSearch.toLowerCase())
+        reAddSearch
+          ? (COUNTRY_NAMES[c] || c).toLowerCase().includes(reAddSearch.toLowerCase()) ||
+            c.toLowerCase().includes(reAddSearch.toLowerCase())
           : true
       );
-  }, [excludedCountries, includeSearch]);
+  }, [excludedContinents, reAddedCountries, reAddSearch]);
 
-  const excludeCountry = (code: string) => {
-    setExcludedCountries((prev) => new Set(prev).add(code));
+  const toggleExcludeContinent = (name: string) => {
+    setExcludedContinents((prev) => {
+      const next = new Set(prev);
+      next.add(name);
+      return next;
+    });
+    // Remove any re-added countries that belonged to this continent
+    // (they get excluded with the continent)
   };
 
-  const includeCountry = (code: string) => {
-    setExcludedCountries((prev) => {
+  const removeExcludedContinent = (name: string) => {
+    setExcludedContinents((prev) => {
+      const next = new Set(prev);
+      next.delete(name);
+      return next;
+    });
+    // Clean up re-added countries from this continent
+    setReAddedCountries((prev) => {
+      const next = new Set(prev);
+      (CONTINENTS[name] || []).forEach((c) => next.delete(c));
+      return next;
+    });
+  };
+
+  const reAddCountry = (code: string) => {
+    setReAddedCountries((prev) => new Set(prev).add(code));
+    setReAddSearch('');
+  };
+
+  const unReAddCountry = (code: string) => {
+    setReAddedCountries((prev) => {
       const next = new Set(prev);
       next.delete(code);
       return next;
@@ -74,6 +90,14 @@ const Rankings = () => {
     setError('');
     setPlayers([]);
     setSearched(true);
+
+    // Build excluded country set: all countries from excluded continents minus re-added ones
+    const excludedCodes = new Set<string>();
+    excludedContinents.forEach((cont) => {
+      (CONTINENTS[cont] || []).forEach((c) => {
+        if (!reAddedCountries.has(c)) excludedCodes.add(c);
+      });
+    });
 
     const allowedSet = region !== 'Global' ? new Set(CONTINENTS[region]) : null;
 
@@ -90,8 +114,7 @@ const Rankings = () => {
           const code = p.user?.country_code;
           if (!code) continue;
           const inRegion = allowedSet ? allowedSet.has(code) : true;
-          const isExcluded = excludedCountries.has(code);
-          if (inRegion && !isExcluded) {
+          if (inRegion && !excludedCodes.has(code)) {
             filtered.push(p);
             if (filtered.length >= 100) break;
           }
@@ -105,7 +128,7 @@ const Rankings = () => {
       setLoading(false);
       setProgress('');
     }
-  }, [mode, region, excludedCountries]);
+  }, [mode, region, excludedContinents, reAddedCountries]);
 
   return (
     <div className="flex flex-col items-center px-4 py-10 min-h-screen w-full max-w-7xl mx-auto">
@@ -115,7 +138,7 @@ const Rankings = () => {
 
       <SlideUp delay={100}>
         <div className="bg-card border p-6 w-full max-w-[700px] rounded-xl shadow-sm mb-8 flex flex-col gap-4">
-          {/* Game mode selector */}
+          {/* Game mode */}
           <div className="flex gap-2 flex-wrap">
             {GAME_MODES.map((m) => (
               <button
@@ -130,7 +153,7 @@ const Rankings = () => {
             ))}
           </div>
 
-          {/* Region selector */}
+          {/* Region */}
           <select
             value={region}
             onChange={(e) => setRegion(e.target.value)}
@@ -141,88 +164,91 @@ const Rankings = () => {
             ))}
           </select>
 
-          {/* Exclude countries dropdown */}
+          {/* Exclude continents dropdown */}
           <div className="relative">
             <button
-              onClick={() => { setShowExcludeDropdown(!showExcludeDropdown); setShowIncludeDropdown(false); }}
+              onClick={() => { setShowContinentDrop(!showContinentDrop); setShowReAddDrop(false); }}
               className="w-full border rounded-xl px-4 py-2.5 text-left text-sm font-semibold bg-card flex items-center justify-between hover:border-primary transition-colors"
             >
               <span>
-                Exclude countries
-                {excludedCountries.size > 0 && (
+                Exclude continents
+                {excludedContinents.size > 0 && (
                   <span className="ml-2 text-xs font-bold text-destructive">
-                    ({excludedCountries.size} excluded)
+                    ({excludedContinents.size} excluded)
                   </span>
                 )}
               </span>
-              <span className={`transition-transform ${showExcludeDropdown ? 'rotate-180' : ''}`}>▾</span>
+              <span className={`transition-transform ${showContinentDrop ? 'rotate-180' : ''}`}>▾</span>
             </button>
-            {showExcludeDropdown && (
-              <div className="absolute z-30 mt-1 w-full bg-card border rounded-xl shadow-lg max-h-52 flex flex-col overflow-hidden">
-                <input
-                  type="text"
-                  value={excludeSearch}
-                  onChange={(e) => setExcludeSearch(e.target.value)}
-                  placeholder="Search country..."
-                  className="px-3 py-2 border-b text-sm bg-transparent outline-none"
-                  autoFocus
-                />
-                <div className="overflow-y-auto">
-                  {availableToExclude.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">No countries available</div>
-                  ) : (
-                    availableToExclude.map((code) => (
-                      <button
-                        key={code}
-                        onClick={() => { excludeCountry(code); setExcludeSearch(''); }}
-                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-destructive/10 hover:text-destructive flex items-center gap-2 transition-colors"
-                      >
-                        <img
-                          src={`https://osu.ppy.sh/images/flags/${code}.png`}
-                          className="w-4 h-auto rounded-sm"
-                          alt={code}
-                          onError={(e) => (e.currentTarget.style.display = 'none')}
-                        />
-                        {COUNTRY_NAMES[code] || code}
-                        <span className="text-xs text-muted-foreground ml-auto">{code}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
+            {showContinentDrop && (
+              <div className="absolute z-30 mt-1 w-full bg-card border rounded-xl shadow-lg overflow-hidden">
+                {availableContinents.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">All continents excluded</div>
+                ) : (
+                  availableContinents.map((name) => (
+                    <button
+                      key={name}
+                      onClick={() => { toggleExcludeContinent(name); }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    >
+                      {name}
+                    </button>
+                  ))
+                )}
               </div>
             )}
           </div>
 
-          {/* Re-include excluded countries dropdown */}
-          {excludedCountries.size > 0 && (
+          {/* Excluded continent chips */}
+          {excludedContinents.size > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {Array.from(excludedContinents).map((name) => (
+                <span
+                  key={name}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-destructive/10 border border-destructive text-destructive"
+                >
+                  {name}
+                  <button
+                    onClick={() => removeExcludedContinent(name)}
+                    className="hover:text-foreground transition-colors text-base leading-none"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Re-add countries from excluded continents */}
+          {excludedContinents.size > 0 && (
             <div className="relative">
               <button
-                onClick={() => { setShowIncludeDropdown(!showIncludeDropdown); setShowExcludeDropdown(false); }}
-                className="w-full border rounded-xl px-4 py-2.5 text-left text-sm font-semibold bg-card flex items-center justify-between border-destructive/40 hover:border-destructive transition-colors"
+                onClick={() => { setShowReAddDrop(!showReAddDrop); setShowContinentDrop(false); }}
+                className="w-full border rounded-xl px-4 py-2.5 text-left text-sm font-semibold bg-card flex items-center justify-between border-accent/40 hover:border-accent transition-colors"
               >
-                <span className="text-destructive">
-                  Re-add excluded countries ({excludedCountries.size})
+                <span className="text-accent-foreground">
+                  Re-add countries from excluded continents
                 </span>
-                <span className={`text-destructive transition-transform ${showIncludeDropdown ? 'rotate-180' : ''}`}>▾</span>
+                <span className={`transition-transform ${showReAddDrop ? 'rotate-180' : ''}`}>▾</span>
               </button>
-              {showIncludeDropdown && (
-                <div className="absolute z-30 mt-1 w-full bg-card border border-destructive/30 rounded-xl shadow-lg max-h-52 flex flex-col overflow-hidden">
+              {showReAddDrop && (
+                <div className="absolute z-30 mt-1 w-full bg-card border rounded-xl shadow-lg max-h-52 flex flex-col overflow-hidden">
                   <input
                     type="text"
-                    value={includeSearch}
-                    onChange={(e) => setIncludeSearch(e.target.value)}
-                    placeholder="Search excluded country..."
+                    value={reAddSearch}
+                    onChange={(e) => setReAddSearch(e.target.value)}
+                    placeholder="Search country..."
                     className="px-3 py-2 border-b text-sm bg-transparent outline-none"
                     autoFocus
                   />
                   <div className="overflow-y-auto">
-                    {availableToInclude.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-muted-foreground">No excluded countries</div>
+                    {reAddableCountries.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">No countries to re-add</div>
                     ) : (
-                      availableToInclude.map((code) => (
+                      reAddableCountries.map((code) => (
                         <button
                           key={code}
-                          onClick={() => { includeCountry(code); setIncludeSearch(''); }}
+                          onClick={() => reAddCountry(code)}
                           className="w-full text-left px-3 py-1.5 text-sm hover:bg-secondary flex items-center gap-2 transition-colors"
                         >
                           <img
@@ -231,14 +257,40 @@ const Rankings = () => {
                             alt={code}
                             onError={(e) => (e.currentTarget.style.display = 'none')}
                           />
-                          <span className="text-destructive line-through">{COUNTRY_NAMES[code] || code}</span>
-                          <span className="text-xs text-muted-foreground ml-auto">re-add</span>
+                          {COUNTRY_NAMES[code] || code}
+                          <span className="text-xs text-muted-foreground ml-auto">{code}</span>
                         </button>
                       ))
                     )}
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Re-added country chips */}
+          {reAddedCountries.size > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {Array.from(reAddedCountries).map((code) => (
+                <span
+                  key={code}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-secondary border border-primary/30 text-foreground"
+                >
+                  <img
+                    src={`https://osu.ppy.sh/images/flags/${code}.png`}
+                    className="w-3.5 h-auto rounded-sm"
+                    alt={code}
+                    onError={(e) => (e.currentTarget.style.display = 'none')}
+                  />
+                  {COUNTRY_NAMES[code] || code}
+                  <button
+                    onClick={() => unReAddCountry(code)}
+                    className="hover:text-destructive transition-colors text-base leading-none"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
             </div>
           )}
 
