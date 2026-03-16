@@ -3,7 +3,8 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig({
-  base: "/osu-better-rankings/",
+  // SUSTITUYE esto con el nombre exacto de tu repositorio entre barras
+  base: "/osu-better-rankings/", 
   server: {
     host: "0.0.0.0",
     port: 8080,
