@@ -72,11 +72,11 @@ export const GAME_MODES: { value: GameMode; label: string }[] = [
 ];
 
 export const REGIONS = [
-  { value: 'Global', label: '🌍 Global' },
-  { value: 'Europe', label: '🇪🇺 Europe' },
-  { value: 'Asia', label: '🌏 Asia' },
-  { value: 'North America', label: '🌎 North America' },
-  { value: 'South America', label: '🌎 South America' },
-  { value: 'Oceania', label: '🌊 Oceania' },
-  { value: 'Africa', label: '🌍 Africa' },
+  { value: 'Global', label: 'Global' },
+  { value: 'Europe', label: 'Europe' },
+  { value: 'Asia', label: 'Asia' },
+  { value: 'North America', label: 'North America' },
+  { value: 'South America', label: 'South America' },
+  { value: 'Oceania', label: 'Oceania' },
+  { value: 'Africa', label: 'Africa' },
 ];
