@@ -151,7 +151,7 @@ const Rankings = () => {
 
           {/* Selector de Continentes */}
           <div className="space-y-2">
-            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest ml-1">Excluir Continente</p>
+            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest ml-1">Exclude continent</p>
             <div className="flex gap-2 flex-wrap">
               {Object.keys(CONTINENTS || {}).map((cont) => {
                 const countriesInCont = (CONTINENTS as any)[cont] || [];
