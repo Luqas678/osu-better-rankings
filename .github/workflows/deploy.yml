@@ -12,13 +12,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v1
+      
       - name: Install
         run: bun install
+        
       - name: Build
-        run: bun run build || npm run build || vite build
+
+        run: bun run build
+        env:
+          VITE_OSU_CLIENT_ID: ${{ secrets.VITE_OSU_CLIENT_ID }}
+          VITE_OSU_CLIENT_SECRET: ${{ secrets.VITE_OSU_CLIENT_SECRET }}
+          
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
+          
   deploy:
     needs: build
     runs-on: ubuntu-latest
