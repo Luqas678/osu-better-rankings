@@ -93,38 +93,39 @@ const Rankings = () => {
     });
   };
 
+  // Filtered players derived from cached data
+  const players = useMemo(() => {
+    if (!allPlayers.length) return [];
+    return allPlayers
+      .filter((p) => !excludedCountries.has(p.user?.country_code))
+      .slice(0, 100);
+  }, [allPlayers, excludedCountries]);
+
   const fetchRanking = useCallback(async () => {
+    // If same mode is already cached, no need to re-fetch
+    if (cachedMode === mode && allPlayers.length > 0) return;
+
     setLoading(true);
     setError('');
-    setPlayers([]);
+    setAllPlayers([]);
 
     try {
-      const filtered: OsuPlayer[] = [];
-      let page = 1;
-
-      while (filtered.length < 100 && page <= 20) {
-        setProgress(`Fetching page ${page}...`);
+      const all: OsuPlayer[] = [];
+      for (let page = 1; page <= 20; page++) {
+        setProgress(`Fetching page ${page}/20...`);
         const ranking = await fetchOsuRankingPage(mode, page);
         if (!ranking || !ranking.length) break;
-
-        for (const p of ranking) {
-          const code = p.user?.country_code;
-          if (!code) continue;
-          if (!excludedCountries.has(code)) {
-            filtered.push(p);
-            if (filtered.length >= 100) break;
-          }
-        }
-        page++;
+        all.push(...ranking);
       }
-      setPlayers(filtered);
+      setAllPlayers(all);
+      setCachedMode(mode);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
       setProgress('');
     }
-  }, [mode, excludedCountries]);
+  }, [mode, cachedMode, allPlayers.length]);
 
   return (
     <div className="flex flex-col items-center px-4 py-10 min-h-screen w-full max-w-7xl mx-auto">
