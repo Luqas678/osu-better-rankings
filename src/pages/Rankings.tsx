@@ -19,7 +19,6 @@ interface CacheEntry {
   timestamp: number;
 }
 
-// Función para leer cache de forma síncrona
 const getSavedCache = (): Partial<Record<GameMode, CacheEntry>> => {
   if (typeof window === 'undefined') return {};
   try {
@@ -34,8 +33,6 @@ const Rankings = () => {
   const [mode, setMode] = useState<GameMode>('osu');
   const [excludedCountries, setExcludedCountries] = useState<Set<string>>(new Set());
   const [appliedExcludedCountries, setAppliedExcludedCountries] = useState<Set<string>>(new Set());
-  
-  // Carga del cache directamente al inicializar el estado
   const [playersByMode, setPlayersByMode] = useState<Partial<Record<GameMode, CacheEntry>>>(getSavedCache);
   
   const [loading, setLoading] = useState(false);
@@ -46,7 +43,7 @@ const Rankings = () => {
   const [excludeSearch, setExcludeSearch] = useState('');
   const [includeSearch, setIncludeSearch] = useState('');
 
-  // Sincronizar cambios entre diferentes pestañas/ventanas
+  // Sincronizar pestañas
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue) {
@@ -57,7 +54,7 @@ const Rankings = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Guardar en localStorage cada vez que actualizamos datos
+  // Guardar cache
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(playersByMode));
   }, [playersByMode]);
@@ -123,7 +120,6 @@ const Rankings = () => {
     });
   };
 
-  // Datos actuales
   const currentModeCache = playersByMode[mode];
   const modePlayers = currentModeCache?.players ?? [];
 
@@ -140,9 +136,8 @@ const Rankings = () => {
     const now = Date.now();
     const cachedEntry = playersByMode[mode];
 
-    // Check de cache robusto
+    // Si el cache es válido, actualizar filtros visuales y salir
     if (cachedEntry && (now - cachedEntry.timestamp < CACHE_DURATION)) {
-      console.log("⚡ Cache detectado: No se llamará a la API");
       setError('');
       return;
     }
@@ -170,8 +165,6 @@ const Rankings = () => {
     }
   }, [excludedCountries, mode, playersByMode]);
 
-  const isCacheValid = currentModeCache && (Date.now() - currentModeCache.timestamp < CACHE_DURATION);
-
   return (
     <div className="flex flex-col items-center px-4 py-10 min-h-screen w-full max-w-7xl mx-auto">
       <SlideUp>
@@ -180,6 +173,8 @@ const Rankings = () => {
 
       <SlideUp delay={100}>
         <div className="bg-card border p-6 w-full max-w-[700px] rounded-xl shadow-sm mb-8 flex flex-col gap-6">
+          
+          {/* Modos */}
           <div className="flex gap-2 flex-wrap">
             {GAME_MODES.map((m) => (
               <button
@@ -194,6 +189,7 @@ const Rankings = () => {
             ))}
           </div>
 
+          {/* Continentes */}
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest ml-1">Exclude continent</p>
             <div className="flex gap-2 flex-wrap">
@@ -205,7 +201,7 @@ const Rankings = () => {
                     key={cont}
                     onClick={() => toggleContinent(cont)}
                     className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${
-                      isFullyExcluded ? 'bg-destructive text-destructive-foreground' : 'bg-secondary'
+                      isFullyExcluded ? 'bg-destructive text-destructive-foreground border-destructive' : 'bg-secondary text-secondary-foreground hover:border-muted-foreground'
                     }`}
                   >
                     {cont}
@@ -215,14 +211,14 @@ const Rankings = () => {
             </div>
           </div>
 
-          {/* Selector de Excluir Países */}
+          {/* Selector de Países */}
           <div className="relative">
             <button
               onClick={() => { setShowExcludeDrop(!showExcludeDrop); setShowIncludeDrop(false); }}
-              className="w-full border rounded-xl px-4 py-2.5 text-left text-sm font-semibold flex items-center justify-between"
+              className="w-full border rounded-xl px-4 py-2.5 text-left text-sm font-semibold flex items-center justify-between hover:border-primary transition-colors"
             >
-              <span>Exclude countries {excludedCountries.size > 0 && `(${excludedCountries.size})`}</span>
-              <span>▾</span>
+              <span>Exclude countries {excludedCountries.size > 0 && <span className="text-destructive ml-1">({excludedCountries.size})</span>}</span>
+              <span className={`transition-transform ${showExcludeDrop ? 'rotate-180' : ''}`}>▾</span>
             </button>
             {showExcludeDrop && (
               <div className="absolute z-30 mt-1 w-full bg-card border rounded-xl shadow-lg max-h-52 overflow-hidden flex flex-col">
@@ -230,13 +226,14 @@ const Rankings = () => {
                   type="text"
                   value={excludeSearch}
                   onChange={(e) => setExcludeSearch(e.target.value)}
-                  placeholder="Search..."
+                  placeholder="Search country..."
                   className="px-3 py-2 border-b bg-transparent outline-none text-sm"
+                  autoFocus
                 />
                 <div className="overflow-y-auto">
                   {availableToExclude.map((code) => (
-                    <button key={code} onClick={() => excludeCountry(code)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-destructive/10 flex items-center gap-2">
-                      <img src={`https://osu.ppy.sh/images/flags/${code}.png`} className="w-4 h-auto" alt={code} />
+                    <button key={code} onClick={() => excludeCountry(code)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-destructive/10 hover:text-destructive flex items-center gap-2">
+                      <img src={`https://osu.ppy.sh/images/flags/${code}.png`} className="w-4 h-auto rounded-sm" alt={code} />
                       {COUNTRY_NAMES[code] || code}
                     </button>
                   ))}
@@ -245,23 +242,24 @@ const Rankings = () => {
             )}
           </div>
 
-          {/* Botón de Acción Principal */}
+          {/* Botón Principal */}
           <button
             onClick={fetchRanking}
             disabled={loading}
-            className="bg-primary text-primary-foreground rounded-full px-8 py-2 font-bold self-end mt-2 hover:scale-105 transition-transform disabled:opacity-50"
+            className="bg-primary text-primary-foreground rounded-full px-8 py-2 font-bold self-end mt-2 transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
           >
-            {loading ? 'Searching...' : isCacheValid ? 'Apply Filters (Cached)' : 'Search Ranking'}
+            {loading ? 'Searching...' : 'Search ranking'}
           </button>
         </div>
       </SlideUp>
 
       {/* Resultados */}
       {loading && <p className="text-muted-foreground animate-pulse mb-4">{progress}</p>}
-      
+      {error && <p className="text-destructive mb-4">{error}</p>}
+
       {!loading && players.length > 0 && (
         <div className="w-full max-w-[700px] bg-card border rounded-xl overflow-hidden shadow-sm">
-          <div className="bg-primary text-primary-foreground grid grid-cols-[50px_1fr_100px_80px] px-5 py-3 text-xs font-bold uppercase">
+          <div className="bg-primary text-primary-foreground grid grid-cols-[50px_1fr_100px_80px] px-5 py-3 text-xs font-bold uppercase tracking-wider">
             <span>#</span><span>Player</span><span className="text-right">PP</span><span className="text-right">Rank</span>
           </div>
           {players.map((p, i) => (
@@ -269,7 +267,7 @@ const Rankings = () => {
               <span className="font-bold text-primary">{i + 1}</span>
               <div className="flex items-center gap-3">
                 <img src={`https://osu.ppy.sh/images/flags/${(p.user?.country_code || '').toUpperCase()}.png`} className="w-5 h-auto rounded-sm" alt="flag" />
-                <a href={`https://osu.ppy.sh/users/${p.user?.id}`} target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">
+                <a href={`https://osu.ppy.sh/users/${p.user?.id}`} target="_blank" rel="noopener noreferrer" className="font-bold hover:underline truncate">
                   {p.user?.username}
                 </a>
               </div>
