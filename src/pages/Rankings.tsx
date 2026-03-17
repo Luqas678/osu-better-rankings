@@ -12,11 +12,11 @@ import {
 const Rankings = () => {
   const [mode, setMode] = useState<GameMode>('osu');
   const [excludedCountries, setExcludedCountries] = useState<Set<string>>(new Set());
-  const [allPlayers, setAllPlayers] = useState<OsuPlayer[]>([]);
+  const [appliedExcludedCountries, setAppliedExcludedCountries] = useState<Set<string>>(new Set());
+  const [playersByMode, setPlayersByMode] = useState<Partial<Record<GameMode, OsuPlayer[]>>>({});
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
-  const [cachedMode, setCachedMode] = useState<GameMode | null>(null);
   const [showExcludeDrop, setShowExcludeDrop] = useState(false);
   const [showIncludeDrop, setShowIncludeDrop] = useState(false);
   const [excludeSearch, setExcludeSearch] = useState('');
@@ -93,21 +93,28 @@ const Rankings = () => {
     });
   };
 
-  // Filtered players derived from cached data
+  const modePlayers = playersByMode[mode] ?? [];
+
+  // Filtered players derived from loaded mode data
   const players = useMemo(() => {
-    if (!allPlayers.length) return [];
-    return allPlayers
-      .filter((p) => !excludedCountries.has(p.user?.country_code))
+    if (!modePlayers.length) return [];
+    return modePlayers
+      .filter((p) => !appliedExcludedCountries.has(p.user?.country_code))
       .slice(0, 100);
-  }, [allPlayers, excludedCountries]);
+  }, [modePlayers, appliedExcludedCountries]);
 
   const fetchRanking = useCallback(async () => {
-    // If same mode is already cached, no need to re-fetch
-    if (cachedMode === mode && allPlayers.length > 0) return;
+    // Apply current filter configuration when clicking Search
+    setAppliedExcludedCountries(new Set(excludedCountries));
+
+    // If this mode is already cached, avoid re-fetching pages
+    if (modePlayers.length > 0) {
+      setError('');
+      return;
+    }
 
     setLoading(true);
     setError('');
-    setAllPlayers([]);
 
     try {
       const all: OsuPlayer[] = [];
@@ -117,15 +124,18 @@ const Rankings = () => {
         if (!ranking || !ranking.length) break;
         all.push(...ranking);
       }
-      setAllPlayers(all);
-      setCachedMode(mode);
+
+      setPlayersByMode((prev) => ({
+        ...prev,
+        [mode]: all,
+      }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
       setProgress('');
     }
-  }, [mode, cachedMode, allPlayers.length]);
+  }, [excludedCountries, mode, modePlayers.length]);
 
   return (
     <div className="flex flex-col items-center px-4 py-10 min-h-screen w-full max-w-7xl mx-auto">
@@ -271,7 +281,7 @@ const Rankings = () => {
             disabled={loading}
             className="bg-primary text-primary-foreground rounded-full px-8 py-2 font-bold self-end mt-2 transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
           >
-            {loading ? 'Searching...' : 'Search ranking'}
+            {loading ? 'Searching...' : modePlayers.length > 0 ? 'Apply filters' : 'Search ranking'}
           </button>
         </div>
       </SlideUp>
