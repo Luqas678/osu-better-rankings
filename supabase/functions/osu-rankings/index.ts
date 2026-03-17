@@ -29,7 +29,7 @@ async function getOsuToken(): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      client_id: parseInt(clientId),
+      client_id: numericId,
       client_secret: clientSecret,
       grant_type: 'client_credentials',
       scope: 'public',
