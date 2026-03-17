@@ -12,10 +12,11 @@ import {
 const Rankings = () => {
   const [mode, setMode] = useState<GameMode>('osu');
   const [excludedCountries, setExcludedCountries] = useState<Set<string>>(new Set());
-  const [players, setPlayers] = useState<OsuPlayer[]>([]);
+  const [allPlayers, setAllPlayers] = useState<OsuPlayer[]>([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
+  const [cachedMode, setCachedMode] = useState<GameMode | null>(null);
   const [showExcludeDrop, setShowExcludeDrop] = useState(false);
   const [showIncludeDrop, setShowIncludeDrop] = useState(false);
   const [excludeSearch, setExcludeSearch] = useState('');
