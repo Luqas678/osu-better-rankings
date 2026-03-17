@@ -5,6 +5,9 @@ const corsHeaders = {
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
+const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const rankingCache = new Map<string, { data: unknown; expiresAt: number }>();
+
 async function getOsuToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) {
     return cachedToken.token;
@@ -56,8 +59,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    const token = await getOsuToken();
+    const cacheKey = `${mode}:${page}`;
+    const cached = rankingCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) {
+      console.log('Cache hit:', cacheKey);
+      return new Response(JSON.stringify(cached.data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
+    const token = await getOsuToken();
     const url = `https://osu.ppy.sh/api/v2/rankings/${mode}/performance?page=${page}`;
     console.log('Fetching:', url);
 
@@ -71,6 +82,7 @@ Deno.serve(async (req) => {
     }
 
     const data = await res.json();
+    rankingCache.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
