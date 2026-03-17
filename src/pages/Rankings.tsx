@@ -11,8 +11,7 @@ import {
   type OsuPlayer,
 } from '@/lib/osu-api';
 
-// cache
-const CACHE_DURATION = 3 * 60 * 60 * 1000;
+const CACHE_DURATION = 3 * 60 * 60 * 1000; // 3 horas
 const STORAGE_KEY = 'osu_rankings_cache_v1';
 
 interface CacheEntry {
@@ -20,13 +19,24 @@ interface CacheEntry {
   timestamp: number;
 }
 
+// Función para leer cache de forma síncrona
+const getSavedCache = (): Partial<Record<GameMode, CacheEntry>> => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch (e) {
+    return {};
+  }
+};
+
 const Rankings = () => {
   const [mode, setMode] = useState<GameMode>('osu');
   const [excludedCountries, setExcludedCountries] = useState<Set<string>>(new Set());
   const [appliedExcludedCountries, setAppliedExcludedCountries] = useState<Set<string>>(new Set());
   
-  // Estado principal que guarda los datos por modo + el tiempo de descarga
-  const [playersByMode, setPlayersByMode] = useState<Partial<Record<GameMode, CacheEntry>>>({});
+  // Carga del cache directamente al inicializar el estado
+  const [playersByMode, setPlayersByMode] = useState<Partial<Record<GameMode, CacheEntry>>>(getSavedCache);
   
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
@@ -36,34 +46,27 @@ const Rankings = () => {
   const [excludeSearch, setExcludeSearch] = useState('');
   const [includeSearch, setIncludeSearch] = useState('');
 
-  // Cargar cache guardado al montar el componente
+  // Sincronizar cambios entre diferentes pestañas/ventanas
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Convertir el objeto plano de vuelta a nuestro estado
-        setPlayersByMode(parsed);
-      } catch (e) {
-        console.error("Error cargando el cache de rankings:", e);
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        setPlayersByMode(JSON.parse(e.newValue));
       }
-    }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Guardar en localStorage cada vez que playersByMode cambie
+  // Guardar en localStorage cada vez que actualizamos datos
   useEffect(() => {
-    if (Object.keys(playersByMode).length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(playersByMode));
-    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(playersByMode));
   }, [playersByMode]);
 
   const allCountries = useMemo(() => {
     const codes = new Set<string>();
     if (CONTINENTS) {
       Object.values(CONTINENTS).forEach((arr) => {
-        if (Array.isArray(arr)) {
-          arr.forEach((c) => codes.add(c));
-        }
+        if (Array.isArray(arr)) arr.forEach((c) => codes.add(c));
       });
     }
     return Array.from(codes).sort((a, b) =>
@@ -110,23 +113,17 @@ const Rankings = () => {
   const toggleContinent = (continentName: string) => {
     const countriesInContinent = (CONTINENTS as any)[continentName] || [];
     if (!countriesInContinent.length) return;
-
     const allAreExcluded = countriesInContinent.every((code: string) => excludedCountries.has(code));
-
     setExcludedCountries((prev) => {
       const next = new Set(prev);
       countriesInContinent.forEach((code: string) => {
-        if (allAreExcluded) {
-          next.delete(code);
-        } else {
-          next.add(code);
-        }
+        allAreExcluded ? next.delete(code) : next.add(code);
       });
       return next;
     });
   };
 
-  // Obtenemos los datos del modo actual
+  // Datos actuales
   const currentModeCache = playersByMode[mode];
   const modePlayers = currentModeCache?.players ?? [];
 
@@ -139,23 +136,21 @@ const Rankings = () => {
 
   const fetchRanking = useCallback(async () => {
     setAppliedExcludedCountries(new Set(excludedCountries));
-
+    
     const now = Date.now();
     const cachedEntry = playersByMode[mode];
 
-    // Si existen datos y no han pasado 3 horas, no pidas a la API
+    // Check de cache robusto
     if (cachedEntry && (now - cachedEntry.timestamp < CACHE_DURATION)) {
-      console.log(`[Cache Hit] Cargando ${mode} desde memoria local.`);
+      console.log("⚡ Cache detectado: No se llamará a la API");
       setError('');
       return;
     }
 
     setLoading(true);
     setError('');
-
     try {
       const all: OsuPlayer[] = [];
-      // Fetching 20 páginas (Top 1000 aprox)
       for (let page = 1; page <= 20; page++) {
         setProgress(`Fetching page ${page}/20...`);
         const ranking = await fetchOsuRankingPage(mode, page);
@@ -165,10 +160,7 @@ const Rankings = () => {
 
       setPlayersByMode((prev) => ({
         ...prev,
-        [mode]: {
-          players: all,
-          timestamp: Date.now(),
-        },
+        [mode]: { players: all, timestamp: Date.now() },
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -178,7 +170,6 @@ const Rankings = () => {
     }
   }, [excludedCountries, mode, playersByMode]);
 
-  // Verificar si el cache del modo actual es válido para mostrarlo en la UI
   const isCacheValid = currentModeCache && (Date.now() - currentModeCache.timestamp < CACHE_DURATION);
 
   return (
@@ -189,8 +180,6 @@ const Rankings = () => {
 
       <SlideUp delay={100}>
         <div className="bg-card border p-6 w-full max-w-[700px] rounded-xl shadow-sm mb-8 flex flex-col gap-6">
-          
-          {/* Modos de Juego */}
           <div className="flex gap-2 flex-wrap">
             {GAME_MODES.map((m) => (
               <button
@@ -205,22 +194,18 @@ const Rankings = () => {
             ))}
           </div>
 
-          {/* Selector de Continentes */}
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest ml-1">Exclude continent</p>
             <div className="flex gap-2 flex-wrap">
               {Object.keys(CONTINENTS || {}).map((cont) => {
                 const countriesInCont = (CONTINENTS as any)[cont] || [];
                 const isFullyExcluded = countriesInCont.length > 0 && countriesInCont.every((c: string) => excludedCountries.has(c));
-                
                 return (
                   <button
                     key={cont}
                     onClick={() => toggleContinent(cont)}
                     className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${
-                      isFullyExcluded 
-                        ? 'bg-destructive text-destructive-foreground border-destructive' 
-                        : 'bg-secondary text-secondary-foreground border-transparent hover:border-muted-foreground'
+                      isFullyExcluded ? 'bg-destructive text-destructive-foreground' : 'bg-secondary'
                     }`}
                   >
                     {cont}
@@ -230,128 +215,61 @@ const Rankings = () => {
             </div>
           </div>
 
-          {/* Excluir Países */}
+          {/* Selector de Excluir Países */}
           <div className="relative">
             <button
               onClick={() => { setShowExcludeDrop(!showExcludeDrop); setShowIncludeDrop(false); }}
-              className="w-full border rounded-xl px-4 py-2.5 text-left text-sm font-semibold bg-card flex items-center justify-between hover:border-primary transition-colors"
+              className="w-full border rounded-xl px-4 py-2.5 text-left text-sm font-semibold flex items-center justify-between"
             >
-              <span>
-                Exclude countries
-                {excludedCountries.size > 0 && (
-                  <span className="ml-2 text-xs font-bold text-destructive">
-                    ({excludedCountries.size})
-                  </span>
-                )}
-              </span>
-              <span className={`transition-transform ${showExcludeDrop ? 'rotate-180' : ''}`}>▾</span>
+              <span>Exclude countries {excludedCountries.size > 0 && `(${excludedCountries.size})`}</span>
+              <span>▾</span>
             </button>
             {showExcludeDrop && (
-              <div className="absolute z-30 mt-1 w-full bg-card border rounded-xl shadow-lg max-h-52 flex flex-col overflow-hidden">
+              <div className="absolute z-30 mt-1 w-full bg-card border rounded-xl shadow-lg max-h-52 overflow-hidden flex flex-col">
                 <input
                   type="text"
                   value={excludeSearch}
                   onChange={(e) => setExcludeSearch(e.target.value)}
-                  placeholder="Search country..."
-                  className="px-3 py-2 border-b text-sm bg-transparent outline-none"
-                  autoFocus
+                  placeholder="Search..."
+                  className="px-3 py-2 border-b bg-transparent outline-none text-sm"
                 />
                 <div className="overflow-y-auto">
-                  {availableToExclude.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">No countries available</div>
-                  ) : (
-                    availableToExclude.map((code) => (
-                      <button
-                        key={code}
-                        onClick={() => excludeCountry(code)}
-                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-destructive/10 hover:text-destructive flex items-center gap-2 transition-colors"
-                      >
-                        <img
-                          src={`https://osu.ppy.sh/images/flags/${code}.png`}
-                          className="w-4 h-auto rounded-sm"
-                          alt={code}
-                        />
-                        {COUNTRY_NAMES[code] || code}
-                        <span className="text-xs text-muted-foreground ml-auto">{code}</span>
-                      </button>
-                    ))
-                  )}
+                  {availableToExclude.map((code) => (
+                    <button key={code} onClick={() => excludeCountry(code)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-destructive/10 flex items-center gap-2">
+                      <img src={`https://osu.ppy.sh/images/flags/${code}.png`} className="w-4 h-auto" alt={code} />
+                      {COUNTRY_NAMES[code] || code}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Re-incluir Países */}
-          {excludedCountries.size > 0 && (
-            <div className="relative">
-              <button
-                onClick={() => { setShowIncludeDrop(!showIncludeDrop); setShowExcludeDrop(false); }}
-                className="w-full border rounded-xl px-4 py-2.5 text-left text-sm font-semibold bg-card flex items-center justify-between border-destructive/40 hover:border-destructive transition-colors"
-              >
-                <span className="text-destructive">Re-add excluded countries</span>
-                <span className={`text-destructive transition-transform ${showIncludeDrop ? 'rotate-180' : ''}`}>▾</span>
-              </button>
-              {showIncludeDrop && (
-                <div className="absolute z-30 mt-1 w-full bg-card border border-destructive/30 rounded-xl shadow-lg max-h-52 flex flex-col overflow-hidden">
-                  <div className="p-2 border-b flex justify-between items-center bg-muted/30">
-                    <input
-                      type="text"
-                      value={includeSearch}
-                      onChange={(e) => setIncludeSearch(e.target.value)}
-                      placeholder="Search..."
-                      className="bg-transparent text-sm outline-none w-full"
-                    />
-                    <button onClick={() => setExcludedCountries(new Set())} className="text-[10px] font-bold text-destructive hover:underline ml-2 whitespace-nowrap">CLEAR ALL</button>
-                  </div>
-                  <div className="overflow-y-auto">
-                    {availableToInclude.map((code) => (
-                      <button
-                        key={code}
-                        onClick={() => includeCountry(code)}
-                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-secondary flex items-center gap-2 transition-colors"
-                      >
-                        <img src={`https://osu.ppy.sh/images/flags/${code}.png`} className="w-4 h-auto rounded-sm" alt={code} />
-                        <span className="text-destructive line-through">{COUNTRY_NAMES[code] || code}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
+          {/* Botón de Acción Principal */}
           <button
             onClick={fetchRanking}
             disabled={loading}
-            className="bg-primary text-primary-foreground rounded-full px-8 py-2 font-bold self-end mt-2 transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
+            className="bg-primary text-primary-foreground rounded-full px-8 py-2 font-bold self-end mt-2 hover:scale-105 transition-transform disabled:opacity-50"
           >
-            {loading 
-              ? 'Searching...' 
-              : isCacheValid 
-                ? 'Apply filters (Cached)' 
-                : 'Search ranking'}
+            {loading ? 'Searching...' : isCacheValid ? 'Apply Filters (Cached)' : 'Search Ranking'}
           </button>
         </div>
       </SlideUp>
 
       {/* Resultados */}
       {loading && <p className="text-muted-foreground animate-pulse mb-4">{progress}</p>}
-      {error && <p className="text-destructive mb-4">{error}</p>}
-
+      
       {!loading && players.length > 0 && (
         <div className="w-full max-w-[700px] bg-card border rounded-xl overflow-hidden shadow-sm">
-          <div className="bg-primary text-primary-foreground grid grid-cols-[50px_1fr_100px_80px] px-5 py-3 text-xs font-bold uppercase tracking-wider">
-            <span>#</span>
-            <span>Player</span>
-            <span className="text-right">PP</span>
-            <span className="text-right">Rank</span>
+          <div className="bg-primary text-primary-foreground grid grid-cols-[50px_1fr_100px_80px] px-5 py-3 text-xs font-bold uppercase">
+            <span>#</span><span>Player</span><span className="text-right">PP</span><span className="text-right">Rank</span>
           </div>
           {players.map((p, i) => (
             <div key={i} className="grid grid-cols-[50px_1fr_100px_80px] px-5 py-3 border-b items-center hover:bg-muted/50 transition-colors">
               <span className="font-bold text-primary">{i + 1}</span>
               <div className="flex items-center gap-3">
                 <img src={`https://osu.ppy.sh/images/flags/${(p.user?.country_code || '').toUpperCase()}.png`} className="w-5 h-auto rounded-sm" alt="flag" />
-                <a href={`https://osu.ppy.sh/users/${p.user?.id}`} target="_blank" rel="noopener noreferrer" className="font-bold hover:underline truncate">
+                <a href={`https://osu.ppy.sh/users/${p.user?.id}`} target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">
                   {p.user?.username}
                 </a>
               </div>
