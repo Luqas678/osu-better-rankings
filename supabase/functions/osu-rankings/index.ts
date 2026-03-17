@@ -5,6 +5,9 @@ const corsHeaders = {
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
+const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const rankingCache = new Map<string, { data: unknown; expiresAt: number }>();
+
 async function getOsuToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) {
     return cachedToken.token;
