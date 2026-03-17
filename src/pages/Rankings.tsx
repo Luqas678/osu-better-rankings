@@ -1,4 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+"use client";
+
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import SlideUp from '@/components/SlideUp';
 import { COUNTRY_NAMES } from '@/lib/country-names';
 import {
@@ -9,11 +11,23 @@ import {
   type OsuPlayer,
 } from '@/lib/osu-api';
 
+// cache
+const CACHE_DURATION = 3 * 60 * 60 * 1000;
+const STORAGE_KEY = 'osu_rankings_cache_v1';
+
+interface CacheEntry {
+  players: OsuPlayer[];
+  timestamp: number;
+}
+
 const Rankings = () => {
   const [mode, setMode] = useState<GameMode>('osu');
   const [excludedCountries, setExcludedCountries] = useState<Set<string>>(new Set());
   const [appliedExcludedCountries, setAppliedExcludedCountries] = useState<Set<string>>(new Set());
-  const [playersByMode, setPlayersByMode] = useState<Partial<Record<GameMode, OsuPlayer[]>>>({});
+  
+  // Estado principal que guarda los datos por modo + el tiempo de descarga
+  const [playersByMode, setPlayersByMode] = useState<Partial<Record<GameMode, CacheEntry>>>({});
+  
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
@@ -22,7 +36,27 @@ const Rankings = () => {
   const [excludeSearch, setExcludeSearch] = useState('');
   const [includeSearch, setIncludeSearch] = useState('');
 
-  // 1. Calculamos todos los países disponibles de forma segura
+  // Cargar cache guardado al montar el componente
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Convertir el objeto plano de vuelta a nuestro estado
+        setPlayersByMode(parsed);
+      } catch (e) {
+        console.error("Error cargando el cache de rankings:", e);
+      }
+    }
+  }, []);
+
+  // Guardar en localStorage cada vez que playersByMode cambie
+  useEffect(() => {
+    if (Object.keys(playersByMode).length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(playersByMode));
+    }
+  }, [playersByMode]);
+
   const allCountries = useMemo(() => {
     const codes = new Set<string>();
     if (CONTINENTS) {
@@ -73,7 +107,6 @@ const Rankings = () => {
     setIncludeSearch('');
   };
 
-  // 2. Lógica para excluir/incluir continentes
   const toggleContinent = (continentName: string) => {
     const countriesInContinent = (CONTINENTS as any)[continentName] || [];
     if (!countriesInContinent.length) return;
@@ -93,9 +126,10 @@ const Rankings = () => {
     });
   };
 
-  const modePlayers = playersByMode[mode] ?? [];
+  // Obtenemos los datos del modo actual
+  const currentModeCache = playersByMode[mode];
+  const modePlayers = currentModeCache?.players ?? [];
 
-  // Filtered players derived from loaded mode data
   const players = useMemo(() => {
     if (!modePlayers.length) return [];
     return modePlayers
@@ -104,11 +138,14 @@ const Rankings = () => {
   }, [modePlayers, appliedExcludedCountries]);
 
   const fetchRanking = useCallback(async () => {
-    // Apply current filter configuration when clicking Search
     setAppliedExcludedCountries(new Set(excludedCountries));
 
-    // If this mode is already cached, avoid re-fetching pages
-    if (modePlayers.length > 0) {
+    const now = Date.now();
+    const cachedEntry = playersByMode[mode];
+
+    // Si existen datos y no han pasado 3 horas, no pidas a la API
+    if (cachedEntry && (now - cachedEntry.timestamp < CACHE_DURATION)) {
+      console.log(`[Cache Hit] Cargando ${mode} desde memoria local.`);
       setError('');
       return;
     }
@@ -118,6 +155,7 @@ const Rankings = () => {
 
     try {
       const all: OsuPlayer[] = [];
+      // Fetching 20 páginas (Top 1000 aprox)
       for (let page = 1; page <= 20; page++) {
         setProgress(`Fetching page ${page}/20...`);
         const ranking = await fetchOsuRankingPage(mode, page);
@@ -127,7 +165,10 @@ const Rankings = () => {
 
       setPlayersByMode((prev) => ({
         ...prev,
-        [mode]: all,
+        [mode]: {
+          players: all,
+          timestamp: Date.now(),
+        },
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -135,7 +176,10 @@ const Rankings = () => {
       setLoading(false);
       setProgress('');
     }
-  }, [excludedCountries, mode, modePlayers.length]);
+  }, [excludedCountries, mode, playersByMode]);
+
+  // Verificar si el cache del modo actual es válido para mostrarlo en la UI
+  const isCacheValid = currentModeCache && (Date.now() - currentModeCache.timestamp < CACHE_DURATION);
 
   return (
     <div className="flex flex-col items-center px-4 py-10 min-h-screen w-full max-w-7xl mx-auto">
@@ -281,7 +325,11 @@ const Rankings = () => {
             disabled={loading}
             className="bg-primary text-primary-foreground rounded-full px-8 py-2 font-bold self-end mt-2 transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
           >
-            {loading ? 'Searching...' : modePlayers.length > 0 ? 'Apply filters' : 'Search ranking'}
+            {loading 
+              ? 'Searching...' 
+              : isCacheValid 
+                ? 'Apply filters (Cached)' 
+                : 'Search ranking'}
           </button>
         </div>
       </SlideUp>
