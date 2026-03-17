@@ -13,11 +13,16 @@ async function getOsuToken(): Promise<string> {
     return cachedToken.token;
   }
 
-  const clientId = Deno.env.get('OSU_CLIENT_ID');
-  const clientSecret = Deno.env.get('OSU_CLIENT_SECRET');
+  const clientId = Deno.env.get('OSU_CLIENT_ID')?.trim();
+  const clientSecret = Deno.env.get('OSU_CLIENT_SECRET')?.trim();
 
   if (!clientId || !clientSecret) {
     throw new Error('OSU_CLIENT_ID or OSU_CLIENT_SECRET not configured');
+  }
+
+  const numericId = Number(clientId);
+  if (isNaN(numericId)) {
+    throw new Error(`OSU_CLIENT_ID is not a valid number: "${clientId}"`);
   }
 
   const res = await fetch('https://osu.ppy.sh/oauth/token', {
