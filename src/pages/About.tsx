@@ -9,6 +9,7 @@ const About = () => {
       <SlideUp delay={100}>
         <p className="text-muted-foreground max-w-[420px] leading-relaxed">
           osu! better rankings lets you explore performance rankings filtered by continent, excluded countries, and game mode. Built with the official osu! API v2.
+          Project by Luqas
         </p>
       </SlideUp>
     </div>
