@@ -281,7 +281,7 @@ const Rankings = () => {
             disabled={loading}
             className="bg-primary text-primary-foreground rounded-full px-8 py-2 font-bold self-end mt-2 transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
           >
-            {loading ? 'Searching...' : 'Search ranking'}
+            {loading ? 'Searching...' : modePlayers.length > 0 ? 'Apply filters' : 'Search ranking'}
           </button>
         </div>
       </SlideUp>
