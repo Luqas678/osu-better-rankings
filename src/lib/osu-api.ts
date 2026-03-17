@@ -8,49 +8,22 @@ export interface OsuPlayer {
   };
 }
 
-const CLIENT_ID = import.meta.env.VITE_OSU_CLIENT_ID;
-const CLIENT_SECRET = import.meta.env.VITE_OSU_CLIENT_SECRET;
+export async function fetchOsuRankingPage(mode: string, page: number): Promise<OsuPlayer[]> {
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-let accessToken: string | null = null;
-
-async function getAccessToken() {
-  if (accessToken) return accessToken;
-
-  const response = await fetch('https://osu.ppy.sh/oauth/token', {
+  const res = await fetch(`https://${projectId}.supabase.co/functions/v1/osu-rankings`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      grant_type: 'client_credentials',
-      scope: 'public',
-    }),
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': anonKey,
+    },
+    body: JSON.stringify({ mode, page }),
   });
 
-  const data = await response.json();
-  if (data.error) throw new Error("Error de autenticación con osu!. Revisa tus claves.");
-  
-  accessToken = data.access_token;
-  return accessToken;
-}
-
-export async function fetchOsuRankingPage(mode: string, page: number): Promise<OsuPlayer[]> {
-  try {
-    const token = await getAccessToken();
-    const response = await fetch(`https://osu.ppy.sh/api/v2/rankings/${mode}/performance?page=${page}`, {
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-    });
-    
-    const data = await response.json();
-    return data.ranking || [];
-  } catch (err) {
-    console.error("Error fetching rankings:", err);
-    throw err;
-  }
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.ranking || [];
 }
 
 export const CONTINENTS: Record<string, string[]> = {
