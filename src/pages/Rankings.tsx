@@ -93,21 +93,28 @@ const Rankings = () => {
     });
   };
 
-  // Filtered players derived from cached data
+  const modePlayers = playersByMode[mode] ?? [];
+
+  // Filtered players derived from loaded mode data
   const players = useMemo(() => {
-    if (!allPlayers.length) return [];
-    return allPlayers
-      .filter((p) => !excludedCountries.has(p.user?.country_code))
+    if (!modePlayers.length) return [];
+    return modePlayers
+      .filter((p) => !appliedExcludedCountries.has(p.user?.country_code))
       .slice(0, 100);
-  }, [allPlayers, excludedCountries]);
+  }, [modePlayers, appliedExcludedCountries]);
 
   const fetchRanking = useCallback(async () => {
-    // If same mode is already cached, no need to re-fetch
-    if (cachedMode === mode && allPlayers.length > 0) return;
+    // Apply current filter configuration when clicking Search
+    setAppliedExcludedCountries(new Set(excludedCountries));
+
+    // If this mode is already cached, avoid re-fetching pages
+    if (modePlayers.length > 0) {
+      setError('');
+      return;
+    }
 
     setLoading(true);
     setError('');
-    setAllPlayers([]);
 
     try {
       const all: OsuPlayer[] = [];
@@ -117,15 +124,18 @@ const Rankings = () => {
         if (!ranking || !ranking.length) break;
         all.push(...ranking);
       }
-      setAllPlayers(all);
-      setCachedMode(mode);
+
+      setPlayersByMode((prev) => ({
+        ...prev,
+        [mode]: all,
+      }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
       setProgress('');
     }
-  }, [mode, cachedMode, allPlayers.length]);
+  }, [excludedCountries, mode, modePlayers.length]);
 
   return (
     <div className="flex flex-col items-center px-4 py-10 min-h-screen w-full max-w-7xl mx-auto">
