@@ -4,14 +4,14 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import SlideUp from '@/components/SlideUp';
 import { COUNTRY_NAMES } from '@/lib/country-names';
 import {
-  fetchOsuRankingPage,
+  fetchAllRankings,
   CONTINENTS,
   GAME_MODES,
   type GameMode,
   type OsuPlayer,
 } from '@/lib/osu-api';
 
-const CACHE_DURATION = 3 * 60 * 60 * 1000; // 3 horas
+const CACHE_DURATION = 3 * 60 * 60 * 1000;
 const STORAGE_KEY = 'osu_rankings_cache_v1';
 
 interface CacheEntry {
@@ -39,11 +39,8 @@ const Rankings = () => {
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
   const [showExcludeDrop, setShowExcludeDrop] = useState(false);
-  const [showIncludeDrop, setShowIncludeDrop] = useState(false);
   const [excludeSearch, setExcludeSearch] = useState('');
-  const [includeSearch, setIncludeSearch] = useState('');
 
-  // Sincronizar pestañas
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue) {
@@ -54,7 +51,6 @@ const Rankings = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Guardar cache
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(playersByMode));
   }, [playersByMode]);
@@ -82,17 +78,6 @@ const Rankings = () => {
       );
   }, [allCountries, excludedCountries, excludeSearch]);
 
-  const availableToInclude = useMemo(() => {
-    return Array.from(excludedCountries)
-      .sort((a, b) => (COUNTRY_NAMES[a] || a).localeCompare(COUNTRY_NAMES[b] || b))
-      .filter((c) =>
-        includeSearch
-          ? (COUNTRY_NAMES[c] || c).toLowerCase().includes(includeSearch.toLowerCase()) ||
-            c.toLowerCase().includes(includeSearch.toLowerCase())
-          : true
-      );
-  }, [excludedCountries, includeSearch]);
-
   const excludeCountry = (code: string) => {
     setExcludedCountries((prev) => new Set(prev).add(code));
     setExcludeSearch('');
@@ -104,7 +89,6 @@ const Rankings = () => {
       next.delete(code);
       return next;
     });
-    setIncludeSearch('');
   };
 
   const toggleContinent = (continentName: string) => {
@@ -136,7 +120,6 @@ const Rankings = () => {
     const now = Date.now();
     const cachedEntry = playersByMode[mode];
 
-    // Si el cache es válido, actualizar filtros visuales y salir
     if (cachedEntry && (now - cachedEntry.timestamp < CACHE_DURATION)) {
       setError('');
       return;
@@ -144,15 +127,12 @@ const Rankings = () => {
 
     setLoading(true);
     setError('');
+    setProgress('Fetching ranking (server-side)...');
     try {
-      const all: OsuPlayer[] = [];
-      for (let page = 1; page <= 20; page++) {
-        setProgress(`Fetching page ${page}/20...`);
-        const ranking = await fetchOsuRankingPage(mode, page);
-        if (!ranking || !ranking.length) break;
-        all.push(...ranking);
+      const { players: all, cached } = await fetchAllRankings(mode);
+      if (cached) {
+        setProgress('Loaded from server cache');
       }
-
       setPlayersByMode((prev) => ({
         ...prev,
         [mode]: { players: all, timestamp: Date.now() },
@@ -164,6 +144,8 @@ const Rankings = () => {
       setProgress('');
     }
   }, [excludedCountries, mode, playersByMode]);
+
+  const hasCachedData = !!currentModeCache && (Date.now() - currentModeCache.timestamp < CACHE_DURATION);
 
   return (
     <div className="flex flex-col items-center px-4 py-10 min-h-screen w-full max-w-7xl mx-auto">
@@ -214,7 +196,7 @@ const Rankings = () => {
           {/* Selector de Países */}
           <div className="relative">
             <button
-              onClick={() => { setShowExcludeDrop(!showExcludeDrop); setShowIncludeDrop(false); }}
+              onClick={() => setShowExcludeDrop(!showExcludeDrop)}
               className="w-full border rounded-xl px-4 py-2.5 text-left text-sm font-semibold flex items-center justify-between hover:border-primary transition-colors"
             >
               <span>Exclude countries {excludedCountries.size > 0 && <span className="text-destructive ml-1">({excludedCountries.size})</span>}</span>
@@ -242,13 +224,29 @@ const Rankings = () => {
             )}
           </div>
 
+          {/* Excluded countries tags */}
+          {excludedCountries.size > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {Array.from(excludedCountries).sort((a, b) => (COUNTRY_NAMES[a] || a).localeCompare(COUNTRY_NAMES[b] || b)).map((code) => (
+                <button
+                  key={code}
+                  onClick={() => includeCountry(code)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs font-semibold hover:bg-destructive/20 transition-colors"
+                >
+                  <img src={`https://osu.ppy.sh/images/flags/${code}.png`} className="w-3 h-auto rounded-sm" alt={code} />
+                  {COUNTRY_NAMES[code] || code} ✕
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Botón Principal */}
           <button
             onClick={fetchRanking}
             disabled={loading}
             className="bg-primary text-primary-foreground rounded-full px-8 py-2 font-bold self-end mt-2 transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
           >
-            {loading ? 'Searching...' : 'Search ranking'}
+            {loading ? 'Searching...' : hasCachedData ? 'Apply filters' : 'Search ranking'}
           </button>
         </div>
       </SlideUp>
