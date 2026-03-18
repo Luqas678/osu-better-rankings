@@ -226,19 +226,44 @@ const Rankings = () => {
             )}
           </div>
 
-          {/* Excluded countries tags */}
+          {/* Re-include excluded countries dropdown */}
           {excludedCountries.size > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {Array.from(excludedCountries).sort((a, b) => (COUNTRY_NAMES[a] || a).localeCompare(COUNTRY_NAMES[b] || b)).map((code) => (
-                <button
-                  key={code}
-                  onClick={() => includeCountry(code)}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs font-semibold hover:bg-destructive/20 transition-colors"
-                >
-                  <img src={`https://osu.ppy.sh/images/flags/${code}.png`} className="w-3 h-auto rounded-sm" alt={code} />
-                  {COUNTRY_NAMES[code] || code} ✕
-                </button>
-              ))}
+            <div className="relative">
+              <button
+                onClick={() => { setShowIncludeDrop(!showIncludeDrop); setShowExcludeDrop(false); }}
+                className="w-full border rounded-xl px-4 py-2.5 text-left text-sm font-semibold flex items-center justify-between hover:border-primary transition-colors"
+              >
+                <span>Re-add excluded countries <span className="text-destructive ml-1">({excludedCountries.size})</span></span>
+                <span className={`transition-transform ${showIncludeDrop ? 'rotate-180' : ''}`}>▾</span>
+              </button>
+              {showIncludeDrop && (
+                <div className="absolute z-30 mt-1 w-full bg-card border rounded-xl shadow-lg max-h-52 overflow-hidden flex flex-col">
+                  <input
+                    type="text"
+                    value={includeSearch}
+                    onChange={(e) => setIncludeSearch(e.target.value)}
+                    placeholder="Search excluded country..."
+                    className="px-3 py-2 border-b bg-transparent outline-none text-sm"
+                    autoFocus
+                  />
+                  <div className="overflow-y-auto">
+                    {Array.from(excludedCountries)
+                      .sort((a, b) => (COUNTRY_NAMES[a] || a).localeCompare(COUNTRY_NAMES[b] || b))
+                      .filter((c) =>
+                        includeSearch
+                          ? (COUNTRY_NAMES[c] || c).toLowerCase().includes(includeSearch.toLowerCase()) ||
+                            c.toLowerCase().includes(includeSearch.toLowerCase())
+                          : true
+                      )
+                      .map((code) => (
+                        <button key={code} onClick={() => { includeCountry(code); setIncludeSearch(''); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-primary/10 hover:text-primary flex items-center gap-2">
+                          <img src={`https://osu.ppy.sh/images/flags/${code}.png`} className="w-4 h-auto rounded-sm" alt={code} />
+                          {COUNTRY_NAMES[code] || code}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
