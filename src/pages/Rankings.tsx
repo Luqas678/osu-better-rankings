@@ -198,7 +198,7 @@ const Rankings = () => {
           {/* Selector de Países */}
           <div className="relative">
             <button
-              onClick={() => setShowExcludeDrop(!showExcludeDrop)}
+              onClick={() => { setShowExcludeDrop(!showExcludeDrop); setShowIncludeDrop(false); }}
               className="w-full border rounded-xl px-4 py-2.5 text-left text-sm font-semibold flex items-center justify-between hover:border-primary transition-colors"
             >
               <span>Exclude countries {excludedCountries.size > 0 && <span className="text-destructive ml-1">({excludedCountries.size})</span>}</span>
