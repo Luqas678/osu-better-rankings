@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import OsuHeader from "@/components/OsuHeader";
+import ThemeToggle from "@/components/ThemeToggle";
 import Index from "./pages/Index";
 import Rankings from "./pages/Rankings";
 import About from "./pages/About";
