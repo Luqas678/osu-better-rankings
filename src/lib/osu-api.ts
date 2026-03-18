@@ -8,7 +8,7 @@ export interface OsuPlayer {
   };
 }
 
-export async function fetchOsuRankingPage(mode: string, page: number): Promise<OsuPlayer[]> {
+export async function fetchAllRankings(mode: string): Promise<{ players: OsuPlayer[]; cached: boolean }> {
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -18,12 +18,12 @@ export async function fetchOsuRankingPage(mode: string, page: number): Promise<O
       'Content-Type': 'application/json',
       'apikey': anonKey,
     },
-    body: JSON.stringify({ mode, page }),
+    body: JSON.stringify({ mode }),
   });
 
   const data = await res.json();
   if (data.error) throw new Error(data.error);
-  return data.ranking || [];
+  return { players: data.ranking || [], cached: !!data.cached };
 }
 
 export const CONTINENTS: Record<string, string[]> = {
