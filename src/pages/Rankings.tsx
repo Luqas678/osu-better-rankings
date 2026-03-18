@@ -39,7 +39,9 @@ const Rankings = () => {
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
   const [showExcludeDrop, setShowExcludeDrop] = useState(false);
+  const [showIncludeDrop, setShowIncludeDrop] = useState(false);
   const [excludeSearch, setExcludeSearch] = useState('');
+  const [includeSearch, setIncludeSearch] = useState('');
 
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
