@@ -1,12 +1,13 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-let cachedToken: { token: string; expiresAt: number } | null = null;
-
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
-const rankingCache = new Map<string, { data: unknown; expiresAt: number }>();
+
+let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function getOsuToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) {
@@ -20,16 +21,11 @@ async function getOsuToken(): Promise<string> {
     throw new Error('OSU_CLIENT_ID or OSU_CLIENT_SECRET not configured');
   }
 
-  const numericId = Number(clientId);
-  if (isNaN(numericId)) {
-    throw new Error(`OSU_CLIENT_ID is not a valid number: "${clientId}"`);
-  }
-
   const res = await fetch('https://osu.ppy.sh/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      client_id: numericId,
+      client_id: Number(clientId),
       client_secret: clientSecret,
       grant_type: 'client_credentials',
       scope: 'public',
@@ -49,6 +45,12 @@ async function getOsuToken(): Promise<string> {
   return cachedToken.token;
 }
 
+function getSupabaseAdmin() {
+  const url = Deno.env.get('SUPABASE_URL')!;
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  return createClient(url, serviceKey);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -57,39 +59,69 @@ Deno.serve(async (req) => {
   try {
     const { mode, page } = await req.json();
 
-    if (!mode || !page) {
+    if (!mode) {
       return new Response(
-        JSON.stringify({ error: 'mode and page are required' }),
+        JSON.stringify({ error: 'mode is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const cacheKey = `${mode}:${page}`;
-    const cached = rankingCache.get(cacheKey);
-    if (cached && Date.now() < cached.expiresAt) {
-      console.log('Cache hit:', cacheKey);
-      return new Response(JSON.stringify(cached.data), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    const supabase = getSupabaseAdmin();
+
+    // If requesting page 1 (or no page), check DB cache first
+    if (!page || page === 1) {
+      const { data: cached } = await supabase
+        .from('ranking_cache')
+        .select('data, fetched_at')
+        .eq('mode', mode)
+        .single();
+
+      if (cached) {
+        const age = Date.now() - new Date(cached.fetched_at).getTime();
+        if (age < CACHE_TTL_MS) {
+          console.log(`DB cache hit for ${mode}, age: ${Math.round(age / 60000)}min`);
+          return new Response(JSON.stringify({ ranking: cached.data, cached: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
     }
 
+    // Fetch all 20 pages from osu! API
     const token = await getOsuToken();
-    const url = `https://osu.ppy.sh/api/v2/rankings/${mode}/performance?page=${page}`;
-    console.log('Fetching:', url);
+    const allPlayers: unknown[] = [];
 
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    for (let p = 1; p <= 20; p++) {
+      const url = `https://osu.ppy.sh/api/v2/rankings/${mode}/performance?page=${p}`;
+      console.log('Fetching:', url);
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`osu! API error [${res.status}]: ${txt.slice(0, 300)}`);
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`osu! API error [${res.status}]: ${txt.slice(0, 300)}`);
+      }
+
+      const data = await res.json();
+      if (data.ranking && data.ranking.length) {
+        allPlayers.push(...data.ranking);
+      } else {
+        break;
+      }
     }
 
-    const data = await res.json();
-    rankingCache.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+    // Store in DB cache (upsert)
+    await supabase
+      .from('ranking_cache')
+      .upsert(
+        { mode, data: allPlayers, fetched_at: new Date().toISOString() },
+        { onConflict: 'mode' }
+      );
 
-    return new Response(JSON.stringify(data), {
+    console.log(`Cached ${allPlayers.length} players for ${mode}`);
+
+    return new Response(JSON.stringify({ ranking: allPlayers, cached: false }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {

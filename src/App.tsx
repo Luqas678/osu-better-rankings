@@ -26,6 +26,7 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
       </HashRouter>
+      <ThemeToggle />
     </TooltipProvider>
   </QueryClientProvider>
 );
